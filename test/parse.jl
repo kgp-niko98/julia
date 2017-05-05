@@ -147,10 +147,10 @@ macro test999_str(args...); args; end
 
 # issue 11970
 @test parseall("""
-macro f(args...) end; @f ""
+    macro f(args...) end; @f "macro argument"
 """) == Expr(:toplevel,
              Expr(:macro, Expr(:call, :f, Expr(:..., :args)), Expr(:block, Expr(:line, 1, :none))),
-             Expr(:macrocall, Symbol("@f"), ""))
+             Expr(:macrocall, Symbol("@f"), Expr(:line, 1, :none), "macro argument"))
 
 # blocks vs. tuples
 @test parse("()") == Expr(:tuple)
@@ -351,7 +351,7 @@ parsehex(s) = parse(Int,s,16)
 # issue #17705
 @test parse("2e3_") == Expr(:call, :*, 2e3, :_)
 @test parse("2e-3_") == Expr(:call, :*, 2e-3, :_)
-@test parse("2e3_\"x\"") == Expr(:call, :*, 2e3, Expr(:macrocall, Symbol("@__str"), "x"))
+@test parse("2e3_\"x\"") == Expr(:call, :*, 2e3, Expr(:macrocall, Symbol("@__str"), Expr(:line, 1, :none), "x"))
 
 # multibyte spaces
 @test parse(Int, "3\u2003\u202F") == 3
@@ -584,9 +584,9 @@ isline(x) = isa(x,Expr) && x.head === :line
 
 # issue #16736
 let
-    local lineoffset0 = @__LINE__ + 1
-    local lineoffset1 = @__LINE__
-    local lineoffset2 = @__LINE__ - 1
+    local lineoffset0 = @__LINE__() + 1
+    local lineoffset1 = @__LINE__()
+    local lineoffset2 = @__LINE__() - 1
     @test lineoffset0 == lineoffset1 == lineoffset2
 end
 
@@ -771,12 +771,12 @@ module B15838
 end
 @test A15838.@f() === nothing
 @test A15838.@f(1) === :b
-let nometh = expand(:(A15838.@f(1, 2)))
+let nometh = expand(:(A15838.@f(1, 2))), lineno = @__LINE__
     @test (nometh::Expr).head === :error
     @test length(nometh.args) == 1
     e = nometh.args[1]::MethodError
     @test e.f === getfield(A15838, Symbol("@f"))
-    @test e.args === (1,2)
+    @test e.args === (Symbol(@__FILE__), lineno, 1, 2)
 end
 
 # issue 10046
@@ -920,10 +920,10 @@ end
 @test :(x`s\`"\x\$\\`) == :(@x_cmd "s`\"\\x\\\$\\\\")
 
 # Check multiline command literals
-@test :```
+@test :(@cmd "multiline\ncommand\n") == :```
 multiline
 command
-``` == :(@cmd "multiline\ncommand\n")
+```
 
 macro julia_cmd(s)
     Meta.quot(parse(s))
@@ -976,7 +976,7 @@ let ..(x,y) = x + y
 end
 
 # issue #7669
-@test parse("@a(b=1, c=2)") == Expr(:macrocall, Symbol("@a"), :(b=1), :(c=2))
+@test parse("@a(b=1, c=2)") == Expr(:macrocall, Symbol("@a"), Expr(:line, 1, :none), :(b=1), :(c=2))
 
 # issue #19685
 let f = function (x; kw...)
@@ -1066,7 +1066,7 @@ end
 @test expand(:(@err20000)) == Expr(:error, "oops!")
 
 # issue #20000
-@test parse("@m(a; b=c)") == Expr(:macrocall, Symbol("@m"),
+@test parse("@m(a; b=c)") == Expr(:macrocall, Symbol("@m"), Expr(:line, 1, :none),
                                   Expr(:parameters, Expr(:kw, :b, :c)), :a)
 
 # issue #21054

@@ -528,8 +528,8 @@ end
 
 emphasize(io, str::AbstractString) = have_color ? print_with_color(Base.error_color(), io, str; bold = true) : print(io, uppercase(str))
 
-show_linenumber(io::IO, line)       = print(io," # line ",line,':')
-show_linenumber(io::IO, line, file) = print(io," # ", file,", line ",line,':')
+show_linenumber(io::IO, line)       = print(io, " #= line ", line, " =#")
+show_linenumber(io::IO, line, file) = print(io, " #= ", file, ":", line, " =#")
 
 # show a block, e g if/for/etc
 function show_block(io::IO, head, args::Vector, body, indent::Int)
@@ -556,7 +556,7 @@ end
 # show an indented list
 function show_list(io::IO, items, sep, indent::Int, prec::Int=0, enclose_operators::Bool=false)
     n = length(items)
-    if n == 0; return end
+    n == 0 && return
     indent += indent_width
     first = true
     for item in items
@@ -903,12 +903,20 @@ function show_unquoted(io::IO, ex::Expr, indent::Int, prec::Int)
         print(io, head, ' ')
         show_list(io, args, ", ", indent)
 
-    elseif head === :macrocall && nargs >= 1
+    elseif head === :macrocall && nargs >= 2
+        # first show the line number argument as a comment
+        if isa(args[2], LineNumberNode) || is_expr(args[2], :line)
+            print(io, args[2], ' ')
+        end
         # Use the functional syntax unless specifically designated with prec=-1
+        # and hide the line number argument from the argument list
         if prec >= 0
-            show_call(io, :call, ex.args[1], ex.args[2:end], indent)
+            show_call(io, :call, args[1], args[3:end], indent)
         else
-            show_list(io, args, ' ', indent)
+            show_args = Vector{Any}(length(args) - 1)
+            show_args[1] = args[1]
+            show_args[2:end] = args[3:end]
+            show_list(io, show_args, ' ', indent)
         end
 
     elseif head === :line && 1 <= nargs <= 2

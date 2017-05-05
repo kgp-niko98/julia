@@ -15,8 +15,8 @@ struct T5589
 end
 @test replstr(T5589(Array{String,1}(100))) == "$(curmod_prefix)T5589(String[#undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef  …  #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef])"
 
-@test replstr(parse("mutable struct X end")) == ":(mutable struct X # none, line 1:\n    end)"
-@test replstr(parse("struct X end")) == ":(struct X # none, line 1:\n    end)"
+@test replstr(parse("mutable struct X end")) == ":(mutable struct X #= none:1 =#\n    end)"
+@test replstr(parse("struct X end")) == ":(struct X #= none:1 =#\n    end)"
 s = "ccall(:f, Int, (Ptr{Void},), &x)"
 @test replstr(parse(s)) == ":($s)"
 
@@ -42,12 +42,14 @@ macro test_repr(x)
             local x1 = parse($x)
             local x2 = eval(parse(repr(x1)))
             local x3 = eval(parse(repr(x2)))
-            x3 == x1 ? nothing : error(string(
-                "repr test failed:",
-                "\noriginal: ", $x,
-                "\n\nparsed: ", x2, "\n", sprint(dump, x2),
-                "\n\nreparsed: ", x3, "\n", sprint(dump, x3)
-                ))
+            if x3 != x1
+                error(string(
+                    "repr test failed:",
+                    "\noriginal: ", $x,
+                    "\n\nparsed: ", x2, "\n", sprint(dump, x2),
+                    "\n\nreparsed: ", x3, "\n", sprint(dump, x3)
+                    ))
+            end
         end
     end
 end
@@ -261,22 +263,22 @@ end
 @test string(:(-{x}))   == "-{x}"
 
 # issue #11393
-@test_repr "@m(x,y) + z"
-@test_repr "(@m(x,y),z)"
-@test_repr "[@m(x,y),z]"
-@test_repr "A[@m(x,y),z]"
-@test_repr "T{@m(x,y),z}"
+@test_repr "@m(x, y) + z"
+@test_repr "(@m(x, y), z)"
+@test_repr "[@m(x, y), z]"
+@test_repr "A[@m(x, y), z]"
+@test_repr "T{@m(x, y), z}"
 @test_repr "@m x @n(y) z"
-@test_repr "f(@m(x,y);z=@n(a))"
-@test_repr "@m(x,y).z"
-@test_repr "::@m(x,y)+z"
+@test_repr "f(@m(x, y); z=@n(a))"
+@test_repr "@m(x, y).z"
+@test_repr "::@m(x, y) + z"
 @test_repr "[@m(x) y z]"
 @test_repr "[@m(x) y; z]"
 @test_repr "let @m(x), y=z; end"
 
-@test repr(:(@m x y))    == ":(@m x y)"
-@test string(:(@m x y))  ==   "@m x y"
-@test string(:(@m x y;)) == "begin \n    @m x y\nend"
+@test repr(:(@m x y))    == ":( #= $(@__FILE__):$(@__LINE__) =# @m x y)"
+@test string(:(@m x y))  ==   " #= $(@__FILE__):$(@__LINE__) =# @m x y"
+@test string(:(@m x y;)) == "begin \n     #= $(@__FILE__):$(@__LINE__) =# @m x y\nend"
 
 # issue #11436
 @test_repr "1 => 2 => 3"
@@ -448,14 +450,14 @@ end
 
 # issue #15309
 l1, l2, l2n = Expr(:line,42), Expr(:line,42,:myfile), LineNumberNode(42)
-@test string(l2n) == " # line 42:"
-@test string(l2)  == " # myfile, line 42:"
+@test string(l2n) == " #= line 42 =#"
+@test string(l2)  == " #= myfile:42 =#"
 @test string(l1)  == string(l2n)
 ex = Expr(:block, l1, :x, l2, :y, l2n, :z)
 @test replace(string(ex)," ","") == replace("""
-begin  # line 42:
-    x # myfile, line 42:
-    y # line 42:
+begin  #= line 42 =#
+    x #= myfile:42 =#
+    y #= line 42 =#
     z
 end""", " ", "")
 # Test the printing of whatever form of line number representation
