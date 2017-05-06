@@ -158,6 +158,10 @@ r = (-4*Int64(maxintfloat(Int === Int32 ? Float32 : Float64))):5
 @test !(1 in 1:0)
 @test !(1.0 in 1.0:0.0)
 
+# test that in works with non numeric types (#21728)
+@test !("a" in 1:3)
+@test !("a" in 1.0:3.0)
+
 # indexing range with empty range (#4309)
 @test (3:6)[5:4] == 7:6
 @test_throws BoundsError (3:6)[5:5]

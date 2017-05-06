@@ -861,13 +861,15 @@ end
 median(r::Range{<:Real}) = mean(r)
 
 function in(x, r::Range)
+    applicable(-, x, first(r)) || return false
     n = step(r) == 0 ? 1 : round(Integer,(x-first(r))/step(r))+1
     n >= 1 && n <= length(r) && r[n] == x
 end
 
 in(x::Integer, r::AbstractUnitRange{<:Integer}) = (first(r) <= x) & (x <= last(r))
 in(x, r::Range{T}) where {T<:Integer} =
-    isinteger(x) && !isempty(r) && x >= minimum(r) && x <= maximum(r) &&
+    applicable(isinteger, x) && isinteger(x) &&
+    !isempty(r) && x >= minimum(r) && x <= maximum(r) &&
         (mod(convert(T,x),step(r))-mod(first(r),step(r)) == 0)
 in(x::Char, r::Range{Char}) =
     !isempty(r) && x >= minimum(r) && x <= maximum(r) &&
