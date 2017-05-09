@@ -38,7 +38,7 @@ find_shlib ()
 }
 
 # First, discover all the places where libgfortran/libgcc is, as well as their true SONAMES
-for lib in arpack openlibm openspecfun lapack; do
+for lib in arpack openspecfun lapack; do
     if [ -f "$private_libdir/lib$lib.$SHLIB_EXT" ]; then
         # Find the paths to the libraries we're interested in.  These are almost
         # always within the same directory, but we like to be general.
@@ -105,16 +105,16 @@ LIBGFORTRAN_DIRS=$(uniquify "$LIBGFORTRAN_DIRS")
 echo "Found traces of libgfortran/libgcc in $LIBGFORTRAN_DIRS"
 
 # For every library that remotely touches libgfortran stuff (so the libraries
-# we have copied in ourselves as well as arpack, openlibm, etc...) we must
+# we have copied in ourselves as well as arpack, openspecfun, etc...) we must
 # update the linkage to point to @rpath (on OSX) or $ORIGIN (on Linux) so
 # that direct links to the old libgfortran directories are instead directed
 # to the proper location, which is our $private_libdir.
 cd $private_libdir
 
 # Iterate over possible library names
-for soname in libopenlibm libopenblas libarpack liblapack libopenspecfun $SONAMES; do
+for soname in libopenblas libarpack liblapack libopenspecfun $SONAMES; do
     # Grab every incarnation of that library that exists within $private_libdir
-    # (e.g. "libopenlibm.so", and "libopenlibm.so.0", etc...)
+    # (e.g. "libopenspecfun.so", and "libopenspecfun.so.0", etc...)
     for lib in $private_libdir/lib*.$SHLIB_EXT*; do
         # Look for links to any of the our three musketeers within ANY of the
         # potential LIBGFORTRAN_DIRS we've discovered so far
