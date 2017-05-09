@@ -319,7 +319,8 @@ void jl_typemap_rehash_array(struct jl_ordereddict_t *pa, jl_value_t *parent, in
     }
     mtcache_rehash(pa, 4 * next_power_of_two(len), parent, tparam, offs);
 }
-void jl_typemap_rehash(union jl_typemap_t ml, int8_t offs) {
+void jl_typemap_rehash(union jl_typemap_t ml, int8_t offs)
+{
     if (jl_typeof(ml.unknown) == (jl_value_t*)jl_typemap_level_type) {
         if (ml.node->targ.values != (void*)jl_nothing)
             jl_typemap_rehash_array(&ml.node->targ, ml.unknown, 1, offs);
@@ -420,7 +421,7 @@ int jl_typemap_visitor(union jl_typemap_t cache, jl_typemap_visitor_fptr fptr, v
 
 // predicate to fast-test if this type is a leaf type that can exist in the cache
 // and does not need a more expensive linear scan to find all intersections
-int is_cache_leaf(jl_value_t *ty)
+static int is_cache_leaf(jl_value_t *ty)
 {
     return (jl_is_datatype(ty) && ((jl_datatype_t*)ty)->uid != 0 && !jl_is_kind(ty));
 }
@@ -542,9 +543,16 @@ int jl_typemap_intersection_visitor(union jl_typemap_t map, int offs,
                 }
             }
         }
-        if (!jl_typemap_intersection_node_visitor(map.node->linear, closure))
-            return 0;
-        return jl_typemap_intersection_visitor(map.node->any, offs+1, closure);
+        if (offs == 0 && ty && (jl_is_type_type(ty) && !is_cache_leaf(jl_tparam0(ty)))) {
+            if (!jl_typemap_intersection_visitor(map.node->any, offs+1, closure))
+                return 0;
+            return jl_typemap_intersection_node_visitor(map.node->linear, closure);
+        }
+        else {
+            if (!jl_typemap_intersection_node_visitor(map.node->linear, closure))
+                return 0;
+            return jl_typemap_intersection_visitor(map.node->any, offs+1, closure);
+        }
     }
     else {
         return jl_typemap_intersection_node_visitor(map.leaf, closure);
@@ -741,10 +749,19 @@ jl_typemap_entry_t *jl_typemap_assoc_by_type(union jl_typemap_t ml_or_cache, jl_
             if (!subtype && is_cache_leaf(ty)) return NULL;
         }
         // Always check the list (since offs doesn't always start at 0)
+        int checked_any = 0;
+        if (offs == 0 && ty && (subtype || (jl_is_type_type(ty) && !is_cache_leaf(jl_tparam0(ty))))) {
+            jl_typemap_entry_t *li = jl_typemap_assoc_by_type(cache->any, types, penv, inexact, subtype, offs+1, world);
+            if (li) return li;
+            checked_any = 1;
+        }
         if (subtype) {
             jl_typemap_entry_t *li = jl_typemap_assoc_by_type_(cache->linear, types, inexact, penv, world);
             if (li) return li;
-            return jl_typemap_assoc_by_type(cache->any, types, penv, inexact, subtype, offs+1, world);
+            if (checked_any)
+                return NULL;
+            else
+                return jl_typemap_assoc_by_type(cache->any, types, penv, inexact, subtype, offs+1, world);
         }
         else {
             return jl_typemap_lookup_by_type_(cache->linear, types, world);
@@ -992,6 +1009,8 @@ static void jl_typemap_level_insert_(jl_typemap_level_t *cache, jl_typemap_entry
         if (jl_typemap_array_insert_(&cache->arg1, t1, newrec, (jl_value_t*)cache, 0, offs, tparams))
             return;
     }
+    if (t1 && (offs == 0 && jl_is_type_type(t1) && !is_cache_leaf(jl_tparam0(t1))))
+        return jl_typemap_insert_generic(&cache->any, (jl_value_t*)cache, newrec, (jl_value_t*)jl_any_type, offs+1, tparams);
     jl_typemap_list_insert_(&cache->linear, (jl_value_t*)cache, newrec, tparams);
 }
 
